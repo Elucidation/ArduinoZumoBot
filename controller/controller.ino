@@ -1,4 +1,5 @@
 #include <ZumoMotors.h>
+#include "Timer.h"
 
 #define LED_PIN 13
 
@@ -6,6 +7,7 @@ ZumoMotors motors;
 
 String inputString = "";         // a string to hold incoming data
 boolean stringComplete = false;  // whether the string is complete
+Timer t;
 
 void setup()
 {
@@ -26,13 +28,18 @@ void setup()
 
 void loop()
 {
+  t.update();
 }
 
 // Drive left and right wheel motors for dt milliseconds, blocking
 void drive(int vl, int vr, int dt_millis) {
   motors.setLeftSpeed(vl);
   motors.setRightSpeed(vr);
-  delay(dt_millis);
+  t.after(dt_millis, drive_stop);
+}
+
+// Stops motors
+void drive_stop() {
   motors.setLeftSpeed(0);
   motors.setRightSpeed(0);
 }
@@ -87,7 +94,7 @@ void serialEvent() {
       case 'd':
       // Stopping
       Serial.println("Stop");
-      drive(0,0,0);
+      drive_stop();
       break;
     }
   }
