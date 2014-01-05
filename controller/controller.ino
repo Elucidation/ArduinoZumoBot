@@ -1,8 +1,8 @@
-//#include <ZumoMotors.h>
+#include <ZumoMotors.h>
 
 #define LED_PIN 13
 
-//ZumoMotors motors;
+ZumoMotors motors;
 
 String inputString = "";         // a string to hold incoming data
 boolean stringComplete = false;  // whether the string is complete
@@ -15,6 +15,11 @@ void setup()
   inputString.reserve(200);
   
   pinMode(LED_PIN, OUTPUT);
+  
+  // Left motor power wiring is reversed.
+  motors.flipLeftMotor(true);
+  
+  // Initial speed is zero
   motors.setLeftSpeed(0);
   motors.setRightSpeed(0);
 }
@@ -39,7 +44,7 @@ void drive(int vl, int vr, int dt_millis) {
  response.  Multiple bytes of data may be available.
  */
 void serialEvent() {
-  int vel, vel2;
+  int vel, vel2, dt;
   while (Serial.available()) {
     // Get state character from buffer
     char c = (char)Serial.read();
@@ -64,16 +69,19 @@ void serialEvent() {
       break;
       
       case 'c':
-      // Both
+      // c left_speed right_speed dt_millis
+      // All
       vel = Serial.parseInt();
       vel = constrain(vel, -400, 400);
       vel2 = Serial.parseInt();
       vel2 = constrain(vel2, -400, 400);
+      dt = Serial.parseInt();
+      dt = constrain(dt, 0, 10000); // 0-10 seconds
       Serial.print("Both ");
       Serial.print(vel);
       Serial.print(" ");
       Serial.println(vel2);
-      drive(vel,vel2,250);
+      drive(vel,vel2,dt);
       break;
       
       case 'd':
