@@ -9,6 +9,73 @@ String inputString = "";         // a string to hold incoming data
 boolean stringComplete = false;  // whether the string is complete
 Timer t;
 
+/// Encoder
+int encoder0PinA = 2;
+int encoder0PinB = 11;
+int encoder0Pos = 0;
+int encoder0PinALast = LOW;
+volatile int n = LOW;
+int last = 0;
+
+int encoder1PinA = 5;
+int encoder1PinB = A2;
+int encoder1Pos = 0;
+int encoder1PinALast = LOW;
+volatile int n2 = LOW;
+int last1 = 0;
+
+void measureLeftEncoder()
+{
+    n = digitalRead(encoder1PinA);
+    if ((encoder1PinALast == LOW) && (n == HIGH))
+    {
+        if (analogRead(encoder1PinB) < 450)
+        {
+            encoder1Pos--;
+        }
+        else
+        {
+            encoder1Pos++;
+        }
+    }
+    encoder1PinALast = n;
+}
+
+void measureRightEncoder()
+{
+    n = digitalRead(encoder0PinA);
+    if ((encoder0PinALast == LOW) && (n == HIGH))
+    {
+        if (digitalRead(encoder0PinB) == LOW)
+        {
+            //if (analogRead(encoder0PinB) < 450) {
+            encoder0Pos--;
+        }
+        else
+        {
+            encoder0Pos++;
+        }
+    }
+    encoder0PinALast = n;
+}
+void printStuff()
+{
+    if (last != encoder0Pos)
+    {
+        Serial.print ("A");
+        Serial.println (encoder0Pos);
+        last = encoder0Pos;
+    }
+
+    if (last1 != encoder1Pos)
+    {
+        Serial.print ("B");
+        Serial.println (encoder1Pos);
+        last1 = encoder1Pos;
+    }
+}
+///
+
 void setup()
 {
   // initialize serial:
@@ -17,6 +84,16 @@ void setup()
   inputString.reserve(200);
   
   pinMode(LED_PIN, OUTPUT);
+  
+  // Initialize Encoders
+  pinMode (encoder0PinA, INPUT);
+  pinMode (encoder0PinB, INPUT);
+  pinMode (encoder1PinA, INPUT);
+  // pinMode (encoder1PinB, INPUT); // Analog
+  attachInterrupt(0, measureRightEncoder, CHANGE);
+  
+  // Print encoder values every second
+  t.every(1000, printStuff);
   
   // Left motor power wiring is reversed.
   motors.flipLeftMotor(true);
@@ -28,6 +105,10 @@ void setup()
 
 void loop()
 {
+  // Measure left encoder manually
+  measureLeftEncoder();
+  
+  // Timer updates
   t.update();
 }
 
