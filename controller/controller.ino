@@ -41,7 +41,7 @@ geometry_msgs::Twist twist_msg;
 
 
 float getBatteryVoltage() {
-  return batteryVoltage = 5.0 * analogRead(BATTERY_READ_PIN) / 1024.0;
+  return 5.0 * analogRead(BATTERY_READ_PIN) / 1024.0;
 }
 
 void cmd_vel_callback( const geometry_msgs::Twist& twist_msg) {
