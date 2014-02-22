@@ -2,7 +2,7 @@
 #include <ZumoMotors.h>
 #include "Timer.h"
 #include <geometry_msgs/Twist.h>
-#include <std_msgs/Float32.h>
+#include <std_msgs/UInt16.h>
 
 // Distance between both wheels
 #define WHEEL_OFFSET_M 0.1 // 10cm
@@ -41,7 +41,9 @@ geometry_msgs::Twist twist_msg;
 
 
 float getBatteryVoltage() {
-  return 5.0 * analogRead(BATTERY_READ_PIN) / 1024.0;
+  // unsigned int batteryVoltage = analogRead(BATTERY_READ_PIN) * 5000L * 3/2 / 1023;
+  // return 5.0 * (float)analogRead(BATTERY_READ_PIN) / 1024.0;
+  return (unsigned int)(analogRead(BATTERY_READ_PIN) * 5000L * 3/2 / 1023);
 }
 
 void cmd_vel_callback( const geometry_msgs::Twist& twist_msg) {
@@ -52,9 +54,10 @@ void cmd_vel_callback( const geometry_msgs::Twist& twist_msg) {
 ros::Subscriber<geometry_msgs::Twist> cmd_vel_topic("cmd_vel", &cmd_vel_callback);
 
 // Battery Voltage Publisher
-std_msgs::Float32 voltage_msg;
+std_msgs::UInt16 voltage_msg;
 ros::Publisher battery_topic("battery_voltage", &voltage_msg);
 
+// Published voltages as a uint16 in millivolts (5.806V = 5806 for example)
 void publishBatteryVoltage() {
   voltage_msg.data = getBatteryVoltage();
   battery_topic.publish( &voltage_msg );
@@ -144,6 +147,7 @@ void setup()
 
   nh.initNode();
   nh.subscribe(cmd_vel_topic);
+  nh.advertise(battery_topic);
 }
 
 void loop()
