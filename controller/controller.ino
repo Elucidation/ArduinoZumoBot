@@ -2,6 +2,7 @@
 #include <ZumoMotors.h>
 #include "Timer.h"
 #include <geometry_msgs/Twist.h>
+#include <std_msgs/Float32.h>
 
 // Distance between both wheels
 #define WHEEL_OFFSET_M 0.1 // 10cm
@@ -9,6 +10,9 @@
 #define LED_PIN 13
 #define MAX_REAL_SPEED 0.65 // m/s
 #define MAX_MOTOR_SPEED 400 // RPM
+
+// Battery Voltage
+#define BATTERY_READ_PIN 1
 
 ZumoMotors motors;
 
@@ -36,11 +40,25 @@ ros::NodeHandle  nh;
 geometry_msgs::Twist twist_msg;
 
 
+float getBatteryVoltage() {
+  return batteryVoltage = 5.0 * analogRead(BATTERY_READ_PIN) / 1024.0;
+}
+
 void cmd_vel_callback( const geometry_msgs::Twist& twist_msg) {
   diff_drive(twist_msg.linear.x, twist_msg.angular.z);
 }
+
+// Command Velocity Subscriber
 ros::Subscriber<geometry_msgs::Twist> cmd_vel_topic("cmd_vel", &cmd_vel_callback);
 
+// Battery Voltage Publisher
+std_msgs::Float32 voltage_msg;
+ros::Publisher battery_topic("battery_voltage", &voltage_msg);
+
+void publishBatteryVoltage() {
+  voltage_msg.data = getBatteryVoltage();
+  battery_topic.publish( &voltage_msg );
+}
 
 
 void measureLeftEncoder()
@@ -113,6 +131,9 @@ void setup()
   
   // Print encoder values every second
   // t.every(1000, printStuff);
+
+  // Publish battery voltage every second
+  t.every(1000, publishBatteryVoltage);
   
   // Left motor power wiring is reversed.
   motors.flipLeftMotor(true);
@@ -158,59 +179,3 @@ void drive_stop() {
   motors.setLeftSpeed(0);
   motors.setRightSpeed(0);
 }
-
-/*
-  SerialEvent occurs whenever a new data comes in the
- hardware serial RX.  This routine is run between each
- time loop() runs, so using delay inside loop can delay
- response.  Multiple bytes of data may be available.
- */
-// void serialEvent() {
-//   int vel, vel2, dt;
-//   while (Serial.available()) {
-//     // Get state character from buffer
-//     char c = (char)Serial.read();
-
-//     switch (c) {
-//       case 'a':
-//       // Drive
-//       vel = Serial.parseInt();
-//       vel = constrain(vel, -400, 400);
-//       Serial.print("Drive ");
-//       Serial.println(vel);
-//       drive(vel,vel,250);
-//       break;
-      
-//       case 'b':
-//       // Turn
-//       vel = Serial.parseInt();
-//       vel = constrain(vel, -400, 400);
-//       Serial.print("Turn ");
-//       Serial.println(vel);
-//       drive(vel,-vel,250);
-//       break;
-      
-//       case 'c':
-//       // c left_speed right_speed dt_millis
-//       // All
-//       vel = Serial.parseInt();
-//       vel = constrain(vel, -400, 400);
-//       vel2 = Serial.parseInt();
-//       vel2 = constrain(vel2, -400, 400);
-//       dt = Serial.parseInt();
-//       dt = constrain(dt, 0, 10000); // 0-10 seconds
-//       Serial.print("Both ");
-//       Serial.print(vel);
-//       Serial.print(" ");
-//       Serial.println(vel2);
-//       drive(vel,vel2,dt);
-//       break;
-      
-//       case 'd':
-//       // Stopping
-//       Serial.println("Stop");
-//       drive_stop();
-//       break;
-//     }
-//   }
-// }
