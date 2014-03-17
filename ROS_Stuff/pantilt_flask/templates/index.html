@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+
+<script type="text/javascript" src="http://cdn.robotwebtools.org/EventEmitter2/current/eventemitter2.min.js"></script>
+<script type="text/javascript" src="http://cdn.robotwebtools.org/roslibjs/current/roslib.min.js"></script>
+
+<link rel="stylesheet" href="http://code.jquery.com/ui/1.10.4/themes/smoothness/jquery-ui.css">
+<script src="http://code.jquery.com/jquery-1.9.1.js"></script>
+<script src="http://code.jquery.com/ui/1.10.4/jquery-ui.js"></script>
+
+<script type="text/javascript" type="text/javascript">
+  // Connecting to ROS
+  // -----------------
+
+  var ros = new ROSLIB.Ros({
+    url : 'ws://71.206.193.17:9090/'
+  });
+  
+  // Publishing a Topic
+  // ------------------
+  var setPos = new ROSLIB.Topic({
+    ros : ros,
+    name : '/pantilt/set_position',
+    messageType : 'pantilt/pan_tilt'
+  });
+
+</script>
+
+<script>
+var pan_pos = 50;
+var tilt_pos = 50;
+var timeout; // Used to implement de-bounce on slider slide events
+
+function publishPose() {
+  setPos.publish(new ROSLIB.Message({pan:pan_pos, tilt:tilt_pos}));
+}
+
+$(function() {
+  $( "#slider_pan" ).slider({
+    value:50,
+    min: 0,
+    max: 100,
+    step: 1,
+    slide: function( event, ui ) {
+      $( "#pan_pos" ).val( ui.value );
+      pan_pos = ui.value;
+      if (timeout) {clearTimeout(timeout);}
+      timeout = setTimeout(publishPose, 15);
+    }
+  });
+  $( "#pan_pos" ).val( $( "#slider_pan" ).slider( "value" ) );
+
+  $( "#slider_tilt" ).slider({
+    value:50,
+    min: 0,
+    max: 100,
+    step: 1,
+    slide: function( event, ui ) {
+      $( "#tilt_pos" ).val( ui.value );
+      tilt_pos = ui.value;
+      if (timeout) {clearTimeout(timeout);}
+      timeout = setTimeout(publishPose, 15);
+    }
+  });
+  $( "#tilt_pos" ).val( $( "#slider_tilt" ).slider( "value" ) );
+});
+</script>
+</head>
+
+<body>
+  <h1>Pan/Tilt Servo Control</h1>
+  <p><img src="http://71.206.193.17:9002/?action=stream" /></p>
+  <i>Using roslibjs (&amp; stuff)</i>
+  <p>
+    <label for="pan_pos">Pan Position:</label>
+    <input type="text" id="pan_pos" style="border:0; font-weight:bold;">
+    <div id="slider_pan" style="max-width:500px"></div>
+  </p>
+  <p>
+    <label for="tilt_pos">Tilt Position:</label>
+    <input type="text" id="tilt_pos" style="border:0; font-weight:bold;">
+    <div id="slider_tilt" style="max-width:500px"></div>
+  </p>
+
+</body>
+</html>

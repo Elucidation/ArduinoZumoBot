@@ -1,0 +1,7 @@
+roscore
+# Source catkin_ws/install/setup.sh
+rosrun rosbridge_server rosbridge_websocket
+rosrun rosserial_python serial_node.py /dev/ttyACM0
+
+# Stream video
+LD_LIBRARY_PATH=/opt/mjpg-streamer/ /opt/mjpg-streamer/mjpg_streamer -i "input_raspicam.so -fps 30 -q 50 -x 640 -y 480" -o "output_http.so -p 9002 -w /opt/mjpg-streamer/www"
