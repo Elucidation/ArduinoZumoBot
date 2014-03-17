@@ -6,6 +6,8 @@ and a pan/tilt servo setup.
 
 Communicates over rosserial.
 
+![Overview](http://i.imgur.com/VPFbfaw.jpg)
+
 
 Wiring
 ---
