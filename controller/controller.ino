@@ -27,9 +27,8 @@
 #define ENCODER_LEFT_PIN_A 2
 #define ENCODER_LEFT_PIN_B 11
 
-#define ENCODER_RIGHT_PIN_A 4
-#define ENCODER_RIGHT_PIN_B 2 // (SPECIAL) Analog pin A2
-#define ENCODER_RIGHT_PIN_B_THRESHOLD 450 // Read value threshold crossing
+#define ENCODER_RIGHT_PIN_A 3
+#define ENCODER_RIGHT_PIN_B 4
 
 // Pan Tilt Servo pins
 #define SERVO_PAN_PIN 5 // Pan
@@ -117,10 +116,10 @@ void setup()
   pinMode (ENCODER_LEFT_PIN_A, INPUT);
   pinMode (ENCODER_LEFT_PIN_B, INPUT);
   pinMode (ENCODER_RIGHT_PIN_A, INPUT);
-  // pinMode (encoder_right_pin_B, INPUT); // Analog
+  pinMode (ENCODER_RIGHT_PIN_B, INPUT);
   
-  // Only Right encoder works with interrupts (left pinB doesn't pass interrupt threshold of ~3.3V)
-  attachInterrupt(0, measureRightEncoder, CHANGE); // 0 = pin 2 interrupt
+  attachInterrupt(0, measureLeftEncoder, CHANGE); // 0 = pin 2 interrupt
+  attachInterrupt(1, measureRightEncoder, CHANGE); // 1 = pin 3 interrupt
   
   // Left motor power wiring is reversed.
   motors.flipLeftMotor(true);
@@ -191,27 +190,26 @@ float getBatteryVoltage() {
 }
 
 // Encoders
-void measureLeftEncoder()
-{
-    encoder_left_val = digitalRead(ENCODER_RIGHT_PIN_A);
-    if ((encoder_right_pin_A_last == LOW) && (encoder_left_val == HIGH))
-    {
-        if (analogRead(ENCODER_RIGHT_PIN_B) < ENCODER_RIGHT_PIN_B_THRESHOLD) 
-          {encode_right_pos--;}
-        else {encode_right_pos++;}
-    }
-    encoder_right_pin_A_last = encoder_left_val;
-}
-
 void measureRightEncoder()
 {
-    encoder_right_val = digitalRead(ENCODER_LEFT_PIN_A);
-    if ((encoder_left_pin_A_last == LOW) && (encoder_right_val == HIGH))
+    encoder_right_val = digitalRead(ENCODER_RIGHT_PIN_A);
+    if ((encoder_right_pin_A_last == LOW) && (encoder_right_val == HIGH))
+    {
+        if (digitalRead(ENCODER_RIGHT_PIN_B) == LOW) {encode_right_pos--;} // Transistor Flipped? 
+        else {encode_right_pos++;}
+    }
+    encoder_right_pin_A_last = encoder_right_val;
+}
+
+void measureLeftEncoder()
+{
+    encoder_left_val = digitalRead(ENCODER_LEFT_PIN_A);
+    if ((encoder_left_pin_A_last == LOW) && (encoder_left_val == HIGH))
     {
         if (digitalRead(ENCODER_LEFT_PIN_B) == LOW) {encoder_left_pos--;}
         else {encoder_left_pos++;}
     }
-    encoder_left_pin_A_last = encoder_right_val;
+    encoder_left_pin_A_last = encoder_left_val;
 }
 
 
