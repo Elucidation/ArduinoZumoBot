@@ -1,6 +1,10 @@
 #include <ros.h> // Timer.h seems to bugger it up, so nope.
 #include <rosserial_arduino/pan_tilt.h> // {pan:uint8,tilt:uint8} ros msg
 
+// ZumoMotors uses Timer1
+// So Servo has to use Timer 2
+// Since Timer 2 is used for Servo,  analogWrite of PWM on pins 3 and 11 is disabled
+
 #include <ZumoMotors.h>
 #include <geometry_msgs/Twist.h>
 #include <std_msgs/Float32.h>
@@ -11,10 +15,10 @@
 #include <ServoTimer2.h> 
 
 // Distance between both wheels
-#define WHEEL_OFFSET_M 0.1 // 10cm
+#define WHEEL_OFFSET_M 0.0889 // 3.5" ~ 8.89cm
 
 #define MAX_REAL_SPEED 0.65 // m/s
-#define MAX_MOTOR_SPEED 400 // RPM
+#define MAX_MOTOR_SPEED 400.0 // RPM
 
 // Others
 #define BATTERY_READ_PIN 1 // (SPECIAL) Analog Pin A1
@@ -30,6 +34,11 @@
 #define ENCODER_RIGHT_PIN_A 3
 #define ENCODER_RIGHT_PIN_B 4
 
+// #define TICKS_PER_REV 380 // ticks for one wheel revolution
+#define TICKS_PER_METER 3110 // 790 ticks for 10 inches, 790 ticks per .254m ~ 3110.23622 ticks/meter
+
+#define WHEEL_VEL_PUBLISH_RATE 50 // ms (20Hz)
+
 // Pan Tilt Servo pins
 #define SERVO_PAN_PIN 5 // Pan
 #define SERVO_TILT_PIN 6 // Tilt
@@ -44,6 +53,9 @@
 // ServoTimer2 min/max microsecond delays 544us - 2400us ~ 0 - 180 degrees
 #define ST2_MIN 544
 #define ST2_MAX 2400
+
+
+#define ENABLE_PAN_TILT true
 
 #define PAN_TILT_MOVE_DELAY 2 // ms delay for smooth movement
 
@@ -77,15 +89,37 @@ ServoTimer2 servo_tilt;
 int pan_pos = 0;
 int tilt_pos = 0;
 
-/// Left Encoder
-int encoder_left_pos = 0;
+// Left Encoder
+long encoder_left_ticks = 0;
+long encoder_left_ticks_old = 0;
 int encoder_left_pin_A_last = LOW;
-volatile int encoder_left_val = LOW;
+int encoder_left_val = LOW;
+float encoder_left_velocity = 0;
 
 // Right Encoder
-int encode_right_pos = 0;
+long encoder_right_ticks = 0;
+long encoder_right_ticks_old = 0;
 int encoder_right_pin_A_last = LOW;
-volatile int encoder_right_val = LOW;
+int encoder_right_val = LOW;
+float encoder_right_velocity = 0;
+
+unsigned long encoder_last_velocity_time = 0; // microseconds
+long last_wheel_ticks_published = 0;
+
+// Encoder tick publishers
+std_msgs::Float32 wheel_vel;
+ros::Publisher lwheel_pub("wheel_velocity/left", &wheel_vel);
+ros::Publisher rwheel_pub("wheel_velocity/right", &wheel_vel);
+
+// Publish left and right wheel encoder ticks
+void publichWheelVelocity() {
+  updateWheelPositionVelocity();
+  wheel_vel.data = encoder_left_velocity;
+  lwheel_pub.publish(&wheel_vel);
+
+  wheel_vel.data = encoder_right_velocity;
+  rwheel_pub.publish(&wheel_vel);
+}
 
 // Battery Voltage Publisher
 std_msgs::Float32 voltage_msg;
@@ -118,18 +152,24 @@ void setup()
   pinMode (ENCODER_RIGHT_PIN_A, INPUT);
   pinMode (ENCODER_RIGHT_PIN_B, INPUT);
   
+  // Both Servos and Encoders use Timer1 library
+  if (ENABLE_PAN_TILT)
+  {
+    // Attach Pan Tilt Servos
+    servo_pan.attach(SERVO_PAN_PIN);
+    servo_tilt.attach(SERVO_TILT_PIN);
+  } 
+
+  // Attach Encoder Interrupts
   attachInterrupt(0, measureLeftEncoder, CHANGE); // 0 = pin 2 interrupt
   attachInterrupt(1, measureRightEncoder, CHANGE); // 1 = pin 3 interrupt
-  
+
   // Left motor power wiring is reversed.
   motors.flipLeftMotor(true);
   
   // Initial speed is zero
   drive_stop();
 
-  // Attach Pan Tilt Servos
-  servo_pan.attach(SERVO_PAN_PIN);
-  servo_tilt.attach(SERVO_TILT_PIN);
 
   // Init pan/tilt to center
   setZero();
@@ -137,23 +177,33 @@ void setup()
   nh.initNode();
   nh.advertise(battery_pub); // Battery Voltage Publisher
 
+  // Encoder publishers
+  nh.advertise(lwheel_pub);
+  nh.advertise(rwheel_pub);
+
   nh.subscribe(cmd_vel_topic); // Command Velocity Subscriber
-  nh.subscribe(pan_tilt_sub); // Pan/Tilt Subscriber
+  if (ENABLE_PAN_TILT) {
+    nh.subscribe(pan_tilt_sub); // Pan/Tilt Subscriber
+  }
 
   
   last_battery_published = millis();
 }
 
 void loop()
-{
-  // Measure left encoder manually
-  measureLeftEncoder();
-  
+{  
   // Publish battery voltage every second
   if (millis() - last_battery_published > BATTERY_VOLTAGE_PUBLISH_RATE)
   {
     publishBatteryVoltage();
     last_battery_published = millis();
+  }
+
+  // Publish encoder at 100 Hz
+  if (millis() - last_wheel_ticks_published > WHEEL_VEL_PUBLISH_RATE)
+  {
+    publichWheelVelocity();
+    last_wheel_ticks_published = millis();
   }
 
   nh.spinOnce();
@@ -190,26 +240,47 @@ float getBatteryVoltage() {
 }
 
 // Encoders
-void measureRightEncoder()
-{
-    encoder_right_val = digitalRead(ENCODER_RIGHT_PIN_A);
-    if ((encoder_right_pin_A_last == LOW) && (encoder_right_val == HIGH))
-    {
-        if (digitalRead(ENCODER_RIGHT_PIN_B) == LOW) {encode_right_pos--;} // Transistor Flipped? 
-        else {encode_right_pos++;}
-    }
-    encoder_right_pin_A_last = encoder_right_val;
-}
-
 void measureLeftEncoder()
 {
     encoder_left_val = digitalRead(ENCODER_LEFT_PIN_A);
     if ((encoder_left_pin_A_last == LOW) && (encoder_left_val == HIGH))
     {
-        if (digitalRead(ENCODER_LEFT_PIN_B) == LOW) {encoder_left_pos--;}
-        else {encoder_left_pos++;}
+        if (digitalRead(ENCODER_LEFT_PIN_B) == LOW) {encoder_left_ticks--;}
+        else {encoder_left_ticks++;}
     }
     encoder_left_pin_A_last = encoder_left_val;
+    // updateWheelPositionVelocity();
+}
+
+void measureRightEncoder()
+{
+    encoder_right_val = digitalRead(ENCODER_RIGHT_PIN_A);
+    if ((encoder_right_pin_A_last == LOW) && (encoder_right_val == HIGH))
+    {
+        if (digitalRead(ENCODER_RIGHT_PIN_B) == LOW) {encoder_right_ticks--;} // Transistor Flipped? 
+        else {encoder_right_ticks++;}
+    }
+    encoder_right_pin_A_last = encoder_right_val;
+    // updateWheelPositionVelocity();
+}
+
+void updateWheelPositionVelocity()
+{
+  long dt = micros() - encoder_last_velocity_time; // ms
+
+  // ticks offset
+  long dleft = encoder_left_ticks - encoder_left_ticks_old;
+  long dright = encoder_right_ticks - encoder_right_ticks_old;
+
+  // Velocity in meters/second
+  // 1e6 because dt is in microseconds
+  encoder_left_velocity = (float)(1000000*dleft) / (TICKS_PER_METER * dt);
+  encoder_right_velocity = (float)(1000000*dright) / (TICKS_PER_METER * dt);
+
+  // Update previous values
+  encoder_left_ticks_old = encoder_left_ticks;
+  encoder_right_ticks_old = encoder_right_ticks;
+  encoder_last_velocity_time = micros();
 }
 
 
