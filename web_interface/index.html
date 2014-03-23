@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8" />
 
+<link rel="stylesheet" type="text/css" href="style.css">
+
 <script type="text/javascript" src="http://cdn.robotwebtools.org/EventEmitter2/current/eventemitter2.min.js"></script>
 <script type="text/javascript" src="http://cdn.robotwebtools.org/roslibjs/current/roslib.min.js"></script>
 <script type="text/javascript" src="Teleop.js"></script>
@@ -15,6 +17,7 @@
 <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.23/jquery-ui.min.js"></script>
 
 <script type="text/javascript" type="text/javascript">
+
 // Connecting to ROS
 // -----------------
 
@@ -100,6 +103,7 @@ $(function() {
 
   // LED Sliders
   $( "#slider_led_left" ).slider({
+    range : 'min',
     value:50,
     min: 0,
     max: 100,
@@ -113,6 +117,7 @@ $(function() {
   $( "#tilt_pos" ).val( $( "#slider_led_left" ).slider( "value" ) );
 
   $( "#slider_led_right" ).slider({
+    range : 'min',
     value:50,
     min: 0,
     max: 100,
@@ -163,36 +168,47 @@ function init() {
 
 </head>
 
-<body onload="init()">
-  <h1>Pan/Tilt Servo Control</h1>
-  <p><center><img src="http://71.206.193.17:9002/?action=stream" /></center></p>
-  <i>Using roslibjs (&amp; stuff)</i>
-  <div style="max-width:500px">
-    <p>
-      <label for="pan_pos">Pan Position:</label>
-      <input type="text" id="pan_pos" style="border:0; font-weight:bold;">
-      <div id="slider_pan" ></div>
-    </p>
-    <p>
-      <label for="tilt_pos">Tilt Position:</label>
-      <input type="text" id="tilt_pos" style="border:0; font-weight:bold;">
-      <div id="slider_tilt" style="max-width:500px"></div>
+<body onload="init()">  
+  <div style="text-align: center; max-width:500px; margin:0 auto;">
+    <h1>Pan/Tilt Servo Control</h1>
+    <i>Using roslibjs (&amp; stuff)</i>
+    <p><img src="http://71.206.193.17:9002/?action=stream" style="max-width:500px;" /></p>
+    <table>
+      <tr>
+        <td>
+          <label for="pan_pos">Pan Position:</label>
+          <input type="text" id="pan_pos" style="border:0; font-weight:bold;">
+          <div id="slider_pan" ></div>
+        </td>
+        <td>
+          <label for="tilt_pos">Tilt Position:</label>
+          <input type="text" id="tilt_pos" style="border:0; font-weight:bold;">
+          <div id="slider_tilt" style="max-width:500px"></div>
+        </td>
+      </tr>
+    </table>
+
+    <p>Tele-op using WASD keys, keep scaled round 50% for normal speed
+      <img src="wasd.png">
+      <div id="speed-label"></div>
+      <div id="speed-slider"></div>
     </p>
 
-    <p>Tele-op using WASD keys, keep scaled round 70% for normal speed</p>  
-    <div id="speed-label"></div>
-    <div id="speed-slider"></div>
-
-    <p>
-      <label for="left_led">Left LED Brightness:</label>
-      <input type="text" id="left_led" style="border:0; font-weight:bold;">
-      <div id="slider_led_left"></div>
-    </p>
-    <p>
-      <label for="right_led">Right LED Brightness:</label>
-      <input type="text" id="right_led" style="border:0; font-weight:bold;">
-      <div id="slider_led_right"></div>
-    </p>
+    <p>LED Brightness</p>
+    <table>
+      <tr>
+        <td>
+          <label for="led_left">Left LED:</label>
+          <input type="text" id="led_left" style="border:0; font-weight:bold;">
+          <div id="slider_led_left"></div>
+        </td>
+        <td>
+          <label for="led_right">Right LED:</label>
+          <input type="text" id="led_right" style="border:0; font-weight:bold;">
+          <div id="slider_led_right"></div>
+        </td>
+      </tr>
+    </table>
     <p>
       <label for="battery_voltage">Battery Voltage:</label>
       <input type="text" id="battery_voltage" style="border:0; font-weight:bold;">
