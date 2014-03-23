@@ -6,9 +6,12 @@ and a pan/tilt servo setup.
 
 Communicates over rosserial.
 
-
 ![Overview](http://i.imgur.com/VPFbfaw.jpg)
 
+
+Architecture Diagram
+---
+![Architecture Diagram](http://i.imgur.com/3eiSSsH.png)
 
 Wiring - Zumobot Arduino Uno
 ---
