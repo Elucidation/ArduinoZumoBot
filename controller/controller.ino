@@ -1,18 +1,10 @@
 #include <ros.h> // Timer.h seems to bugger it up, so nope.
-#include <rosserial_arduino/pan_tilt.h> // {pan:uint8,tilt:uint8} ros msg
 
 // ZumoMotors uses Timer1
-// So Servo has to use Timer 2
-// Since Timer 2 is used for Servo,  analogWrite of PWM on pins 3 and 11 is disabled
 
 #include <ZumoMotors.h>
 #include <geometry_msgs/Twist.h>
 #include <std_msgs/Float32.h>
-
-// Nice Servo Library that uses Timer 2 (since Timer1 used by ZumoMotors.h)
-// Unfortunately Buzzer also uses Timer 2 so can't be used at the same time.
-// Library : https://github.com/DerekK19/Arduino/tree/master/libraries/ServoTimer2
-#include <ServoTimer2.h> 
 
 // PID controllers for wheels
 // #include <PID_v1.h> // Couldn't use, ran out of memory, using function-based PID
@@ -46,60 +38,15 @@
 #define METERS_PER_REV 0.12186495176848874 // meters per full revolution
 #define REV_PER_METER 8.20580474934037 // revolutions per meter
 
-
 #define WHEEL_VEL_PUBLISH_RATE 100 // ms (10Hz)
 #define MOTOR_PID_RATE 20 // ms (50Hz) PID Motor update rate (Should be < WHEEL_VEL_PUBLISH_RATE)
 #define MOTOR_SPEED_CUTOFF 20 // lowest motor speed at which to zero it
-
-// Pan Tilt Servo pins
-#define SERVO_PAN_PIN 5 // Pan
-#define SERVO_TILT_PIN 6 // Tilt
-
-// Pan servo center min/max range (0-180 degrees with 90 degrees centred)
-#define SERVO_PAN_MIN 40
-#define SERVO_PAN_MAX 140
-
-// Tilt servo center min/max range (0-180 degrees with 90 degrees centred)
-#define SERVO_TILT_MIN 50
-#define SERVO_TILT_MAX 130
-// ServoTimer2 min/max microsecond delays 544us - 2400us ~ 0 - 180 degrees
-#define ST2_MIN 544
-#define ST2_MAX 2400
-
-
-#define ENABLE_PAN_TILT true
-
-#define PAN_TILT_MOVE_DELAY 2 // ms delay for smooth movement
 
 // ROS
 ros::NodeHandle nh;
 geometry_msgs::Twist twist_msg;
 
 ZumoMotors motors; // Motor controller
-// Timer t;
-
-// Pan Tilt variables
-uint8_t pan, tilt;
-
-void set_position_callback(const rosserial_arduino::pan_tilt& msg)
-{
-  digitalWrite(13, HIGH-digitalRead(13));   // blink the led
-  pan = msg.pan;
-  tilt = msg.tilt;
-  
-  moveTo(int(pan), int(tilt));
-}
-
-// Set up pan/tilt subscriber
-ros::Subscriber<rosserial_arduino::pan_tilt> pan_tilt_sub("pantilt/set_position", set_position_callback);
-
-// Servo objects
-ServoTimer2 servo_pan;
-ServoTimer2 servo_tilt;
-
-// Servo positions (0-180 degrees with 90 degrees centred)
-int pan_pos = 0;
-int tilt_pos = 0;
 
 // Left Encoder
 long encoder_left_ticks = 0;
@@ -175,14 +122,6 @@ void setup()
   pinMode (ENCODER_LEFT_PIN_B, INPUT);
   pinMode (ENCODER_RIGHT_PIN_A, INPUT);
   pinMode (ENCODER_RIGHT_PIN_B, INPUT);
-  
-  // Both Servos and Encoders use Timer1 library
-  if (ENABLE_PAN_TILT)
-  {
-    // Attach Pan Tilt Servos
-    servo_pan.attach(SERVO_PAN_PIN);
-    servo_tilt.attach(SERVO_TILT_PIN);
-  } 
 
   // Attach Encoder Interrupts
   attachInterrupt(1, measureLeftEncoder, CHANGE); // 1 = pin 3 interrupt
@@ -197,9 +136,6 @@ void setup()
   // Initialize PIDs
   initPIDs();
 
-  // Init pan/tilt to center
-  setPanTiltZero();
-
   nh.getHardware()->setBaud(ROS_SERIAL_BAUD_RATE);
   nh.initNode();
   nh.advertise(battery_pub); // Battery Voltage Publisher
@@ -209,9 +145,6 @@ void setup()
   nh.advertise(rwheel_pub);
 
   nh.subscribe(cmd_vel_topic); // Command Velocity Subscriber
-  if (ENABLE_PAN_TILT) {
-    nh.subscribe(pan_tilt_sub); // Pan/Tilt Subscriber
-  }
 
   last_battery_published = millis();
 }
@@ -321,8 +254,6 @@ void updateMotorPIDs()
   updateWheelPositionVelocity();
 
   // run pid controller, setting pid outputs
-  // pid_left.Compute();
-  // pid_right.Compute();
   doLeftPID();
   doRightPID();
 
@@ -341,54 +272,7 @@ void initPIDs()
   // Init setpoints in case they aren't yet set
   pid_left_setpoint = 0;
   pid_right_setpoint = 0;
-
-  // pid_left.SetMode(AUTOMATIC);
-  // pid_left.SetOutputLimits(-400,400);
-  // pid_left.SetSampleTime(20);
-  // pid_right.SetMode(AUTOMATIC);
-  // pid_right.SetOutputLimits(-400,400);
-  // pid_right.SetSampleTime(20);
 }
-
-// Smoothly move to pan tilt pos 0-100 range for both (50 centered)
-void moveTo(int pan, int tilt)
-{
-  while (abs(pan_pos - pan) + abs(tilt_pos - tilt) > 0) {
-    pan_pos += pan_pos > pan ? -1 : pan_pos < pan ? 1 : 0;
-    tilt_pos += tilt_pos > tilt ? -1 : tilt_pos < tilt ? 1 : 0;
-    setPan( map(pan, 0, 100, SERVO_PAN_MIN, SERVO_PAN_MAX) );
-    setTilt( map(tilt, 0, 100, SERVO_TILT_MIN, SERVO_TILT_MAX) );
-    delay(PAN_TILT_MOVE_DELAY); // ms
-  }
-}
-
-
-// Moves to pan and tilt in range 0 to 100, where 50 is centered
-void setPanTilt(int pan, int tilt)
-{
-  setPan( map(pan, 0, 100, SERVO_PAN_MIN, SERVO_PAN_MAX) );
-  setTilt( map(tilt, 0, 100, SERVO_TILT_MIN, SERVO_TILT_MAX) );
-}
-
-// Center Pan/Tilt servos
-void setPanTiltZero()
-{
-  moveTo(50,50);
-}
-
-// Given degree, constrain to 0-180, then convert to microsecond delay
-void setPan(int pan_deg)
-{
-  pan_deg = constrain(pan_deg, SERVO_PAN_MIN, SERVO_PAN_MAX);
-  servo_pan.write(map(pan_deg, 0, 180, ST2_MIN, ST2_MAX));
-}
-
-void setTilt(int tilt_deg)
-{
-  tilt_deg = constrain(tilt_deg, SERVO_TILT_MIN, SERVO_TILT_MAX);
-  servo_tilt.write(map(tilt_deg, 0, 180, ST2_MIN, ST2_MAX));
-}
-
 
 #define PID_OUTMIN -400
 #define PID_OUTMAX 400
